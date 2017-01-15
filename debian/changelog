@@ -1,3 +1,15 @@
+zookeeper (3.4.5+dfsg-2+deb8u1) jessie; urgency=high
+
+  * Team upload.
+  * Fix CVE-2016-5017:
+    Lyon Yang discovered that the C client shells cli_st and cli_mt of Apache
+    Zookeeper, a high-performance coordination service for distributed
+    applications, were affected by a buffer overflow vulnerability associated
+    with parsing of the input command when using the "cmd:" batch mode syntax.
+    If the command string exceeds 1024 characters a buffer overflow will occur.
+
+ -- Markus Koschany <apo@debian.org>  Sat, 01 Oct 2016 20:02:51 +0200
+
 zookeeper (3.4.5+dfsg-2) unstable; urgency=high
 
   [ tony mancill ]
