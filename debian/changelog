@@ -1,3 +1,9 @@
+zookeeper (3.4.5+dfsg-2+deb8u2) jessie-security; urgency=medium
+
+  * CVE-2017-5637
+
+ -- Moritz Mühlenhoff <jmm@debian.org>  Wed, 31 May 2017 11:28:54 +0200
+
 zookeeper (3.4.5+dfsg-2+deb8u1) jessie; urgency=high
 
   * Team upload.

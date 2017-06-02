@@ -5,3 +5,4 @@ fixes/ZOOKEEPER-705
 ftbfs-gcc-4.7.diff
 fixes/ZOOKEEPER-770
 CVE-2016-5017.patch
+CVE-2017-5637.patch
