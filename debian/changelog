@@ -1,20 +1,156 @@
-zookeeper (3.4.5+dfsg-2+deb8u2) jessie-security; urgency=medium
-
-  * CVE-2017-5637
-
- -- Moritz Mühlenhoff <jmm@debian.org>  Wed, 31 May 2017 11:28:54 +0200
-
-zookeeper (3.4.5+dfsg-2+deb8u1) jessie; urgency=high
+zookeeper (3.4.9-3+deb8u1) jessie-security; urgency=high
 
   * Team upload.
-  * Fix CVE-2016-5017:
-    Lyon Yang discovered that the C client shells cli_st and cli_mt of Apache
-    Zookeeper, a high-performance coordination service for distributed
-    applications, were affected by a buffer overflow vulnerability associated
-    with parsing of the input command when using the "cmd:" batch mode syntax.
-    If the command string exceeds 1024 characters a buffer overflow will occur.
+  * Fix CVE-2018-8012:
+    No authentication/authorization is enforced when a server attempts to join
+    a quorum in Apache ZooKeeper. As a result an arbitrary end point could join
+    the cluster and begin propagating counterfeit changes to the leader.
+    (Closes: #899332)
 
- -- Markus Koschany <apo@debian.org>  Sat, 01 Oct 2016 20:02:51 +0200
+ -- Markus Koschany <apo@debian.org>  Wed, 23 May 2018 22:34:43 +0200
+
+zookeeper (3.4.9-3) unstable; urgency=medium
+
+  * Team upload.
+  * Apply patch for CVE-2017-5637 (Closes: #863811)
+    "wchp" and "wchc" are now disabled by default.
+
+ -- tony mancill <tmancill@debian.org>  Thu, 01 Jun 2017 16:26:44 -0700
+
+zookeeper (3.4.9-2) unstable; urgency=medium
+
+  * Team upload.
+  * Apply patch to set JAVA in the environment (Closes: #839184)
+    - Thank you to Felix Dreissig.
+  * Add patch for spelling corrections in upstream source.
+
+ -- tony mancill <tmancill@debian.org>  Sun, 16 Oct 2016 20:50:15 -0700
+
+zookeeper (3.4.9-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream release
+    - Refreshed the patches
+    - Updated debian/pom.xml
+  * Updated the upstream signing keys
+
+ -- Emmanuel Bourg <ebourg@apache.org>  Fri, 16 Sep 2016 15:13:01 +0200
+
+zookeeper (3.4.8-2) unstable; urgency=medium
+
+  * Team upload.
+  * Add systemd unit file.  (Closes: #830222)
+    - Thanks to Felix Dreissig for the patch series.
+  * Add dh-python to Build-Depends.  (Closes: #830216)
+    - Thanks to Felix Dreissig for the patch.
+  * Standards-Version updated to 3.9.8 (no changes)
+
+ -- tony mancill <tmancill@debian.org>  Thu, 07 Jul 2016 21:05:26 -0700
+
+zookeeper (3.4.8-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream release
+    - Refreshed the patches
+    - Updated debian/pom.xml
+  * Standards-Version updated to 3.9.7 (no changes)
+  * Use secure Vcs-* URLs
+
+ -- Emmanuel Bourg <ebourg@apache.org>  Fri, 26 Feb 2016 14:51:43 +0100
+
+zookeeper (3.4.7-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream release
+    - Refreshed the patches
+    - Updated debian/pom.xml
+  * Updated the upstream signing keys
+
+ -- Emmanuel Bourg <ebourg@apache.org>  Sat, 02 Jan 2016 22:32:10 +0100
+
+zookeeper (3.4.6-8) unstable; urgency=medium
+
+  * Team upload.
+  * Fixed the netty dependency for libzookeeper-java (Closes: #797229)
+
+ -- Emmanuel Bourg <ebourg@apache.org>  Tue, 01 Sep 2015 08:53:30 +0200
+
+zookeeper (3.4.6-7) unstable; urgency=medium
+
+  * Team upload.
+  * Build-dep on liblogx4cxx-dev.  See transition bug #792013.
+    (Closes: #794418)
+
+ -- tony mancill <tmancill@debian.org>  Sun, 09 Aug 2015 12:36:52 -0700
+
+zookeeper (3.4.6-6) unstable; urgency=medium
+
+  * Team upload.
+  * Depend on libnetty-3.9-java instead of libnetty-java
+
+ -- Emmanuel Bourg <ebourg@apache.org>  Tue, 28 Jul 2015 15:44:25 +0200
+
+zookeeper (3.4.6-5) unstable; urgency=medium
+
+  * Team upload.
+  * Fixed the packaging type of the Maven artifact (pom -> jar)
+  * Improved the build reproducibility:
+    - Set the locale to 'en' when generating the javadoc
+
+ -- Emmanuel Bourg <ebourg@apache.org>  Fri, 24 Jul 2015 17:23:32 +0200
+
+zookeeper (3.4.6-4) unstable; urgency=medium
+
+  * Team upload.
+  * Upload to unstable
+  * Improved the build reproducibility:
+    - Removed the Built-At, Built-By and Built-On entries in the manifests
+    - Use the changelog date as the build date in Info.java
+
+ -- Emmanuel Bourg <ebourg@apache.org>  Tue, 28 Apr 2015 10:03:34 +0200
+
+zookeeper (3.4.6-3) experimental; urgency=medium
+
+  * Team upload.
+  * Fixed the Maven rule for netty to work with maven-repo-helper << 1.8.10
+
+ -- Emmanuel Bourg <ebourg@apache.org>  Wed, 28 Jan 2015 23:19:38 +0100
+
+zookeeper (3.4.6-2) experimental; urgency=medium
+
+  * Team upload.
+  * Fixed the groupId of netty in the installed pom
+
+ -- Emmanuel Bourg <ebourg@apache.org>  Wed, 28 Jan 2015 11:32:32 +0100
+
+zookeeper (3.4.6-1) experimental; urgency=medium
+
+  * Team upload.
+
+  [ James Page ]
+  * d/control: Bump epoch on default-jdk BD to exclude archictectures which
+    don't have Java 6 or better (Closes: #742405).
+
+  [ Tim Retout ]
+  * New upstream version.  (Closes: #756982)
+  * debian/patches: Refresh patches.
+
+  [ Emmanuel Bourg ]
+  * Install the Maven artifacts (Closes: #775893)
+  * Standards-Version updated to 3.9.6 (no changes)
+  * Fixed some lintian warnings related to debian/copyright
+  * libzookeeper-java suggests libzookeeper-java-doc but doesn't recommend it
+  * Install the API documentation under /usr/share/doc/libzookeeper-java
+    instead of usr/share/doc/libzookeeper-java-doc
+  * debian/orig-tar.sh:
+    - Removed src/contrib/loggraph from the upstream tarball since it isn't used
+      and is missing the source of a minimized JavaScript file (yui-min.js)
+    - Use XZ compression for the upstream tarball
+    - Delete the non filtered upstream tarball after unpacking it
+  * Added the .patch extension to the patches
+  * Added the missing patch descriptions
+
+ -- Emmanuel Bourg <ebourg@apache.org>  Mon, 26 Jan 2015 13:36:17 +0100
 
 zookeeper (3.4.5+dfsg-2) unstable; urgency=high
 

@@ -1,0 +1,23 @@
+Description: Remove the timestamp and set the locale when generating the javadoc to make it reproducible
+Author: Emmanuel Bourg <ebourg@apache.org>
+Forwarded: no
+--- a/build.xml
++++ b/build.xml
+@@ -470,6 +470,8 @@ xmlns:maven="antlib:org.apache.maven.art
+          windowtitle="${Name} ${version} API"
+          doctitle="${Name} ${version} API"
+          bottom="Copyright &amp;copy; ${year} The Apache Software Foundation"
++         locale="en"
++         additionalparam="-notimestamp"
+          >
+     	<packageset dir="${java.src.dir}">
+           <include name="org/apache/**"/>
+@@ -494,6 +496,8 @@ xmlns:maven="antlib:org.apache.maven.art
+          windowtitle="${Name} ${version} API"
+          doctitle="${Name} ${version} API"
+          bottom="Copyright &amp;copy; ${year} The Apache Software Foundation"
++         locale="en"
++         additionalparam="-notimestamp"
+          >
+     	<fileset dir="${java.src.dir}">
+           <include name="org/apache/**/*Main.java"/>

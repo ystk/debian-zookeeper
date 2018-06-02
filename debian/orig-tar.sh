@@ -1,16 +1,17 @@
 #!/bin/bash -e
 
 VERSION=$2
-TAR=../zookeeper_$VERSION.orig.tar.gz
-NEWTAR=../zookeeper_$VERSION+dfsg.orig.tar.bz2
+TAR=../zookeeper_$VERSION.orig.tar.xz
 DIR=zookeeper-$VERSION
-mkdir -p $DIR
 
 # Unpack ready fo re-packing
-tar -xzf $TAR -C $DIR --strip-components=1
+mkdir -p $DIR
+tar -xzf $3 -C $DIR --strip-components=1
+rm $3
 
 # Repack excluding stuff we don't need
-GZIP=--best tar -cjf $NEWTAR --exclude '*.jar' \
+XZ_OPT=--best tar -cvJf $TAR \
+         --exclude '*.jar' \
          --exclude "Makefile.in" \
          --exclude "aclocal.m4" \
          --exclude "autom4te.cache" \
@@ -24,9 +25,10 @@ GZIP=--best tar -cjf $NEWTAR --exclude '*.jar' \
          --exclude "zookeeper-${VERSION}/recipes" \
          --exclude "zookeeper-${VERSION}/dist-maven" \
          --exclude "zookeeper-${VERSION}/src/contrib/fatjar" \
+         --exclude "zookeeper-${VERSION}/src/contrib/loggraph" \
          --exclude "zookeeper-${VERSION}/src/c/generated" \
          --exclude "zookeeper-${VERSION}/src/java/main/org/apache/jute/compiler/generated/*.java" \
-         --exclude "zookeeper-${VERSION}/src/java/generated" $DIR
+         --exclude "zookeeper-${VERSION}/src/java/generated" \
+         $DIR
 
-rm -rf $DIR $TAR
-
+rm -rf $DIR

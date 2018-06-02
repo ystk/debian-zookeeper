@@ -24,12 +24,8 @@ import java.io.IOException;
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.apache.zookeeper.server.persistence.FileTxnSnapLog;
 import org.apache.zookeeper.server.persistence.Util;
 
@@ -42,19 +38,27 @@ import org.apache.zookeeper.server.persistence.Util;
  * and the corresponding logs.
  */
 public class PurgeTxnLog {
-    private static final Logger LOG = LoggerFactory.getLogger(PurgeTxnLog.class);
+
+    private static final String COUNT_ERR_MSG = "count should be greater than or equal to 3";
 
     static void printUsage(){
+        System.out.println("Usage:");
         System.out.println("PurgeTxnLog dataLogDir [snapDir] -n count");
         System.out.println("\tdataLogDir -- path to the txn log directory");
         System.out.println("\tsnapDir -- path to the snapshot directory");
-        System.out.println("\tcount -- the number of old snaps/logs you want to keep");
-        System.exit(1);
+        System.out.println("\tcount -- the number of old snaps/logs you want " +
+            "to keep, value should be greater than or equal to 3");
     }
-    
+
+    private static final String PREFIX_SNAPSHOT = "snapshot";
+    private static final String PREFIX_LOG = "log";
+
     /**
-     * purges the snapshot and logs keeping the last num snapshots 
-     * and the corresponding logs.
+     * Purges the snapshot and logs keeping the last num snapshots and the
+     * corresponding logs. If logs are rolling or a new snapshot is created
+     * during this process, these newest N snapshots or any data logs will be
+     * excluded from current purging cycle.
+     *
      * @param dataDir the dir that has the logs
      * @param snapDir the dir that has the snapshots
      * @param num the number of snapshots to keep
@@ -62,42 +66,45 @@ public class PurgeTxnLog {
      */
     public static void purge(File dataDir, File snapDir, int num) throws IOException {
         if (num < 3) {
-            throw new IllegalArgumentException("count should be greater than 3");
+            throw new IllegalArgumentException(COUNT_ERR_MSG);
         }
 
         FileTxnSnapLog txnLog = new FileTxnSnapLog(dataDir, snapDir);
-        
-        // found any valid recent snapshots?
-        
-        // files to exclude from deletion
-        Set<File> exc=new HashSet<File>();
+
         List<File> snaps = txnLog.findNRecentSnapshots(num);
-        if (snaps.size() == 0) 
+        retainNRecentSnapshots(txnLog, snaps);
+    }
+
+    // VisibleForTesting
+    static void retainNRecentSnapshots(FileTxnSnapLog txnLog, List<File> snaps) {
+        // found any valid recent snapshots?
+        if (snaps.size() == 0)
             return;
         File snapShot = snaps.get(snaps.size() -1);
-        for (File f: snaps) {
-            exc.add(f);
-        }
-        long zxid = Util.getZxidFromName(snapShot.getName(),"snapshot");
-        exc.addAll(Arrays.asList(txnLog.getSnapshotLogs(zxid)));
+        final long leastZxidToBeRetain = Util.getZxidFromName(
+                snapShot.getName(), PREFIX_SNAPSHOT);
 
-        final Set<File> exclude=exc;
         class MyFileFilter implements FileFilter{
             private final String prefix;
             MyFileFilter(String prefix){
                 this.prefix=prefix;
             }
             public boolean accept(File f){
-                if(!f.getName().startsWith(prefix) || exclude.contains(f))
+                if(!f.getName().startsWith(prefix + "."))
                     return false;
+                long fZxid = Util.getZxidFromName(f.getName(), prefix);
+                if (fZxid >= leastZxidToBeRetain) {
+                    return false;
+                }
                 return true;
             }
         }
         // add all non-excluded log files
-        List<File> files=new ArrayList<File>(
-                Arrays.asList(txnLog.getDataDir().listFiles(new MyFileFilter("log."))));
+        List<File> files = new ArrayList<File>(Arrays.asList(txnLog
+                .getDataDir().listFiles(new MyFileFilter(PREFIX_LOG))));
         // add all non-excluded snapshot files to the deletion list
-        files.addAll(Arrays.asList(txnLog.getSnapDir().listFiles(new MyFileFilter("snapshot."))));
+        files.addAll(Arrays.asList(txnLog.getSnapDir().listFiles(
+                new MyFileFilter(PREFIX_SNAPSHOT))));
         // remove the old files
         for(File f: files)
         {
@@ -112,22 +119,74 @@ public class PurgeTxnLog {
     }
     
     /**
-     * @param args PurgeTxnLog dataLogDir
-     *     dataLogDir -- txn log directory
-     *     -n num (number of snapshots to keep)
+     * @param args dataLogDir [snapDir] -n count
+     * dataLogDir -- path to the txn log directory
+     * snapDir -- path to the snapshot directory
+     * count -- the number of old snaps/logs you want to keep, value should be greater than or equal to 3<br>
      */
     public static void main(String[] args) throws IOException {
-        if(args.length<3 || args.length>4)
-            printUsage();
-        int i = 0;
-        File dataDir=new File(args[0]);
-        File snapDir=dataDir;
-        if(args.length==4){
-            i++;
-            snapDir=new File(args[i]);
+        if (args.length < 3 || args.length > 4) {
+            printUsageThenExit();
         }
-        i++; i++;
-        int num = Integer.parseInt(args[i]);
+        File dataDir = validateAndGetFile(args[0]);
+        File snapDir = dataDir;
+        int num = -1;
+        String countOption = "";
+        if (args.length == 3) {
+            countOption = args[1];
+            num = validateAndGetCount(args[2]);
+        } else {
+            snapDir = validateAndGetFile(args[1]);
+            countOption = args[2];
+            num = validateAndGetCount(args[3]);
+        }
+        if (!"-n".equals(countOption)) {
+            printUsageThenExit();
+        }
         purge(dataDir, snapDir, num);
+    }
+
+    /**
+     * validates file existence and returns the file
+     *
+     * @param path
+     * @return File
+     */
+    private static File validateAndGetFile(String path) {
+        File file = new File(path);
+        if (!file.exists()) {
+            System.err.println("Path '" + file.getAbsolutePath()
+                    + "' does not exist. ");
+            printUsageThenExit();
+        }
+        return file;
+    }
+
+    /**
+     * Returns integer if parsed successfully and it is valid otherwise prints
+     * error and usage and then exits
+     *
+     * @param number
+     * @return
+     */
+    private static int validateAndGetCount(String number) {
+        int result = 0;
+        try {
+            result = Integer.parseInt(number);
+            if (result < 3) {
+                System.err.println(COUNT_ERR_MSG);
+                printUsageThenExit();
+            }
+        } catch (NumberFormatException e) {
+            System.err
+                    .println("'" + number + "' can not be parsed to integer.");
+            printUsageThenExit();
+        }
+        return result;
+    }
+
+    private static void printUsageThenExit() {
+        printUsage();
+        System.exit(1);
     }
 }

@@ -5,9 +5,10 @@ export JAVA_HOME=/usr/lib/jvm/default-java
 PYVERS := $(shell pyversions -vr)
 DEB_UPSTREAM_VERSION=$(shell dpkg-parsechangelog | sed -rne 's,^Version: ([^+]+).*,\1,p')
 DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
+DEB_CHANGELOG_DATETIME = $(shell dpkg-parsechangelog --show-field Date)
 
 %:
-	dh $@ --with javahelper --with python2
+	dh $@ --with javahelper --with python2 --with systemd
 
 override_dh_auto_build:
 	# TODO exclude the fatjar contrib from upstream tarball and include the rest contrib
@@ -15,7 +16,7 @@ override_dh_auto_build:
 	javacc -OUTPUT_DIRECTORY=src/java/main/org/apache/jute/compiler/generated src/java/main/org/apache/jute/compiler/generated/rcc.jj
 	# the upstream build file includes .java files in the jars. Let's create the jars ourselves.
 	# see: https://issues.apache.org/jira/browse/ZOOKEEPER-537
-	ant -Dversion=$(DEB_UPSTREAM_VERSION) -DlastRevision=-1 javadoc javadoc-dev jar
+	ant -Dversion=$(DEB_UPSTREAM_VERSION) -DlastRevision=-1 '-Dbuild.time=$(DEB_CHANGELOG_DATETIME)' javadoc javadoc-dev jar
 
 	# Compile C library
 	cd src/c && autoreconf -i
@@ -51,6 +52,10 @@ override_dh_install:
 		sed -e 's/__ARCH__/$(DEB_HOST_MULTIARCH)/g' debian/$$install.install.in \
 			> debian/$$install.install; \
 	done
+
+	# Install the Maven artifacts
+	mh_installpom -plibzookeeper-java debian/pom.xml
+	mh_installjar -plibzookeeper-java --java-lib --has-package-version debian/pom.xml build/zookeeper.jar
 	dh_install
 
 ifeq (,$(findstring nocheck, $(DEB_BUILD_OPTIONS)))
@@ -84,6 +89,7 @@ endif
 endif
 
 override_dh_clean:
+	mh_clean
 	dh_clean --exclude=src/java \
              --exclude=src/docs \
              --exclude=src/c \
@@ -128,4 +134,7 @@ override_dh_auto_clean:
 	rm -rf src/c/TEST-*
 
 override_dh_installinit:
-	dh_installinit -d
+	dh_installinit --name=zookeeper
+
+override_dh_systemd_enable:
+	dh_systemd_enable --name=zookeeper

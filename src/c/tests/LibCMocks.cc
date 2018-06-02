@@ -147,7 +147,7 @@ Mock_calloc* Mock_calloc::mock_=0;
 // realloc
 
 #ifndef USING_DUMA
-void* realloc(void* p, size_t s){
+DECLARE_WRAPPER(void*,realloc,(void* p, size_t s)){
     if(!Mock_realloc::mock_)
         return LIBC_SYMBOLS.realloc(p,s);
     return Mock_realloc::mock_->call(p,s);
@@ -309,6 +309,17 @@ int poll(struct pollfd *fds, POLL_NFDS_TYPE nfds, int timeout){
     return Mock_poll::mock_->call(fds,nfds,timeout);        
     
 }
+
+/*
+ * Recent gcc with -O2 and glibc FORTIFY feature may cause our poll
+ * mock to be ignored.
+ */
+#if __USE_FORTIFY_LEVEL > 0
+int __poll_chk (struct pollfd *__fds, nfds_t __nfds, int __timeout,
+                __SIZE_TYPE__ __fdslen) {
+    return poll(__fds, __nfds, __timeout);
+}
+#endif
 
 // *****************************************************************************
 // gettimeofday

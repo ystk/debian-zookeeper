@@ -16,6 +16,14 @@
  * limitations under the License.
  */
 
+/**
+ * cli.c is a example/sample C client shell for ZooKeeper. It contains
+ * basic shell functionality which exercises some of the features of
+ * the ZooKeeper C client API. It is not a full fledged client and is
+ * not meant for production usage - see the Java client shell for a
+ * fully featured shell.
+ */
+
 #include <zookeeper.h>
 #include <proto.h>
 #include <stdlib.h>
@@ -180,6 +188,11 @@ void my_string_completion(int rc, const char *name, const void *data) {
     }
     if(batchMode)
       shutdownThisThing=1;
+}
+
+void my_string_completion_free_data(int rc, const char *name, const void *data) {
+    my_string_completion(rc, name, data);
+    free((void*)data);
 }
 
 void my_data_completion(int rc, const char *value, int value_len,
@@ -418,7 +431,7 @@ void processline(char *line) {
 //                    my_string_completion, strdup(line));
 //        }
         rc = zoo_acreate(zh, line, "new", 3, &ZOO_OPEN_ACL_UNSAFE, flags,
-                my_string_completion, strdup(line));
+                my_string_completion_free_data, strdup(line));
         if (rc) {
             fprintf(stderr, "Error %d for %s\n", rc, line);
         }
@@ -442,7 +455,7 @@ void processline(char *line) {
             fprintf(stderr, "Path must start with /, found: %s\n", line);
             return;
         }
-        rc = zoo_async(zh, line, my_string_completion, strdup(line));
+        rc = zoo_async(zh, line, my_string_completion_free_data, strdup(line));
         if (rc) {
             fprintf(stderr, "Error %d for %s\n", rc, line);
         }
@@ -535,7 +548,15 @@ int main(int argc, char **argv) {
     }
     if (argc > 2) {
       if(strncmp("cmd:",argv[2],4)==0){
-        strcpy(cmd,argv[2]+4);
+        size_t cmdlen = strlen(argv[2]);
+        if (cmdlen > sizeof(cmd)) {
+          fprintf(stderr,
+                  "Command length %zu exceeds max length of %zu\n",
+                  cmdlen,
+                  sizeof(cmd));
+          return 2;
+        }
+        strncpy(cmd, argv[2]+4, sizeof(cmd));
         batchMode=1;
         fprintf(stderr,"Batch mode: %s\n",cmd);
       }else{

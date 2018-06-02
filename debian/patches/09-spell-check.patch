@@ -1,0 +1,226 @@
+Description: Correct spelling mistakes in upstream source
+Author: tony mancill <tmancill@debian.org>
+Forwarded: https://github.com/apache/zookeeper/pull/87
+
+--- a/src/c/include/zookeeper.h
++++ b/src/c/include/zookeeper.h
+@@ -468,8 +468,8 @@ ZOOAPI zhandle_t *zookeeper_init(const c
+  * ZBADARGUMENTS - invalid input parameters
+  * ZMARSHALLINGERROR - failed to marshall a request; possibly, out of memory
+  * ZOPERATIONTIMEOUT - failed to flush the buffers within the specified timeout.
+- * ZCONNECTIONLOSS - a network error occured while attempting to send request to server
+- * ZSYSTEMERROR -- a system (OS) error occured; it's worth checking errno to get details
++ * ZCONNECTIONLOSS - a network error occurred while attempting to send request to server
++ * ZSYSTEMERROR -- a system (OS) error occurred; it's worth checking errno to get details
+  */
+ ZOOAPI int zookeeper_close(zhandle_t *zh);
+ 
+@@ -523,12 +523,12 @@ ZOOAPI struct sockaddr* zookeeper_get_co
+  * ZOK - success
+  * ZBADARGUMENTS - invalid input parameters
+  * ZINVALIDSTATE - zhandle state is either ZOO_SESSION_EXPIRED_STATE or ZOO_AUTH_FAILED_STATE
+- * ZCONNECTIONLOSS - a network error occured while attempting to establish 
++ * ZCONNECTIONLOSS - a network error occurred while attempting to establish 
+  * a connection to the server
+  * ZMARSHALLINGERROR - failed to marshall a request; possibly, out of memory
+  * ZOPERATIONTIMEOUT - hasn't received anything from the server for 2/3 of the
+  * timeout value specified in zookeeper_init()
+- * ZSYSTEMERROR -- a system (OS) error occured; it's worth checking errno to get details
++ * ZSYSTEMERROR -- a system (OS) error occurred; it's worth checking errno to get details
+  */
+ #ifdef WIN32
+ ZOOAPI int zookeeper_interest(zhandle_t *zh, SOCKET *fd, int *interest, 
+@@ -547,11 +547,11 @@ ZOOAPI int zookeeper_interest(zhandle_t
+  * ZOK - success
+  * ZBADARGUMENTS - invalid input parameters
+  * ZINVALIDSTATE - zhandle state is either ZOO_SESSION_EXPIRED_STATE or ZOO_AUTH_FAILED_STATE
+- * ZCONNECTIONLOSS - a network error occured while attempting to send request to server
++ * ZCONNECTIONLOSS - a network error occurred while attempting to send request to server
+  * ZSESSIONEXPIRED - connection attempt failed -- the session's expired
+  * ZAUTHFAILED - authentication request failed, e.i. invalid credentials
+  * ZRUNTIMEINCONSISTENCY - a server response came out of order
+- * ZSYSTEMERROR -- a system (OS) error occured; it's worth checking errno to get details
++ * ZSYSTEMERROR -- a system (OS) error occurred; it's worth checking errno to get details
+  * ZNOTHING -- not an error; simply indicates that there no more data from the server 
+  *              to be processed (when called with ZOOKEEPER_READ flag).
+  */
+@@ -1166,7 +1166,7 @@ ZOOAPI const char* zerror(int c);
+  * ZBADARGUMENTS - invalid input parameters
+  * ZINVALIDSTATE - zhandle state is either ZOO_SESSION_EXPIRED_STATE or ZOO_AUTH_FAILED_STATE
+  * ZMARSHALLINGERROR - failed to marshall a request; possibly, out of memory
+- * ZSYSTEMERROR - a system error occured
++ * ZSYSTEMERROR - a system error occurred
+  */
+ ZOOAPI int zoo_add_auth(zhandle_t *zh,const char* scheme,const char* cert, 
+ 	int certLen, void_completion_t completion, const void *data);
+--- a/src/c/src/load_gen.c
++++ b/src/c/src/load_gen.c
+@@ -256,7 +256,7 @@ int main(int argc, char **argv) {
+         deletedCounter=0;
+         rc=recursiveDelete(argv[2]);
+         if(rc==ZOK){
+-            LOG_INFO(("Succesfully deleted a subtree starting at %s (%d nodes)",
++            LOG_INFO(("Successfully deleted a subtree starting at %s (%d nodes)",
+                     argv[2],deletedCounter));
+             exit(0);
+         }
+--- a/src/contrib/zkpython/src/c/pyzk_docstrings.h
++++ b/src/contrib/zkpython/src/c/pyzk_docstrings.h
+@@ -276,7 +276,7 @@ const char pyzk_add_auth_doc[] =
+ "BADARGUMENTS - invalid input parameters\n"
+ "INVALIDSTATE - zhandle state is either SESSION_EXPIRED_STATE or AUTH_FAILED_STATE\n"
+ "MARSHALLINGERROR - failed to marshall a request; possibly, out of memory\n"
+-  "SYSTEMERROR - a system error occured\n";
++  "SYSTEMERROR - a system error occurred\n";
+ 
+ const char pyzk_is_unrecoverable_doc[] = 
+ " checks if the current zookeeper connection state can't be recovered.\n"
+@@ -513,8 +513,8 @@ static const char pyzk_close_doc[] =
+ "BADARGUMENTS - invalid input parameters\n"
+ "MARSHALLINGERROR - failed to marshall a request; possibly, out of memory\n"
+ "OPERATIONTIMEOUT - failed to flush the buffers within the specified timeout.\n"
+-"CONNECTIONLOSS - a network error occured while attempting to send request to server\n"
+-  "SYSTEMERROR -- a system (OS) error occured; it's worth checking errno to get details\n";
++"CONNECTIONLOSS - a network error occurred while attempting to send request to server\n"
++  "SYSTEMERROR -- a system (OS) error occurred; it's worth checking errno to get details\n";
+ 
+ static const char pyzk_set2_doc[] = 
+ "\n"
+--- a/src/contrib/zkpython/src/c/zookeeper.c
++++ b/src/contrib/zkpython/src/c/zookeeper.c
+@@ -721,7 +721,7 @@ PyObject *pyzoo_adelete(PyObject *self,
+   return Py_BuildValue("i", err);
+ }
+ 
+-/* Asynchronous node existance check, returns integer error code */
++/* Asynchronous node existence check, returns integer error code */
+ PyObject *pyzoo_aexists(PyObject *self, PyObject *args)
+ {
+   int zkhid; char *path; 
+@@ -1059,7 +1059,7 @@ static PyObject *pyzoo_delete(PyObject *
+   return Py_BuildValue("i", err);
+ }
+ 
+-/* Synchronous node existance check, returns stat if exists, None if
++/* Synchronous node existence check, returns stat if exists, None if
+    absent */
+ static PyObject *pyzoo_exists(PyObject *self, PyObject *args)
+ {
+--- a/src/contrib/zktreeutil/src/ZkAdaptor.cc
++++ b/src/contrib/zktreeutil/src/ZkAdaptor.cc
+@@ -446,7 +446,7 @@ namespace zktreeutil
+             if (rc == ZNONODE)
+                 return false;
+             // Some error
+-            std::cerr << "[zktreeutil] Error in checking existance of " << path << std::endl;
++            std::cerr << "[zktreeutil] Error in checking existence of " << path << std::endl;
+             throw ZooKeeperException( string("Unable to check existence of node ") + path, rc );
+         } else {
+             return true;        
+--- a/src/contrib/zktreeutil/src/ZkAdaptor.h
++++ b/src/contrib/zktreeutil/src/ZkAdaptor.h
+@@ -255,7 +255,7 @@ namespace zktreeutil
+             vector<string> getNodeChildren( const string &path) throw(ZooKeeperException);
+ 
+             /**
+-             * \brief Check the existance of path to a znode.
++             * \brief Check the existence of path to a znode.
+              * 
+              * @param path the absolute path name of the znode
+              * @return TRUE if the znode exists; FALSE otherwise
+--- a/src/contrib/zktreeutil/src/ZkTreeUtil.cc
++++ b/src/contrib/zktreeutil/src/ZkTreeUtil.cc
+@@ -347,7 +347,7 @@ namespace zktreeutil
+         std::cerr << "[zktreeutil] connected to ZK serverfor reading"
+             << std::endl;
+ 
+-        // Check the existance of the path to znode
++        // Check the existence of the path to znode
+         if (!zkHandle->nodeExists (path))
+         {
+             string errMsg = string("[zktreeutil] path does not exists : ") + path;
+--- a/src/contrib/zooinspector/src/java/org/apache/zookeeper/inspector/manager/ZooInspectorManagerImpl.java
++++ b/src/contrib/zooinspector/src/java/org/apache/zookeeper/inspector/manager/ZooInspectorManagerImpl.java
+@@ -625,7 +625,7 @@ public class ZooInspectorManagerImpl imp
+                                 zooKeeper));
+                     } catch (Exception e) {
+                         LoggerFactory.getLogger().error(
+-                                "Error occured adding node watcher for node: "
++                                "Error occurred adding node watcher for node: "
+                                         + node, e);
+                     }
+                 }
+@@ -700,7 +700,7 @@ public class ZooInspectorManagerImpl imp
+                     }
+                 } catch (Exception e) {
+                     LoggerFactory.getLogger().error(
+-                            "Error occured re-adding node watcherfor node "
++                            "Error occurred re-adding node watcherfor node "
+                                     + nodePath, e);
+                 }
+                 nodeListener.processEvent(event.getPath(), event.getType()
+--- a/src/docs/src/documentation/conf/cli.xconf
++++ b/src/docs/src/documentation/conf/cli.xconf
+@@ -98,7 +98,7 @@
+        |     <broken-links type="none"/>
+        |
+        |   Two attributes to this node specify whether a page should
+-       |   be generated when an error has occured. 'generate' specifies
++       |   be generated when an error has occurred. 'generate' specifies
+        |   whether a page should be generated (default: true) and
+        |   extension specifies an extension that should be appended
+        |   to the generated page's filename (default: none)
+--- a/src/docs/src/documentation/content/xdocs/zookeeperProgrammers.xml
++++ b/src/docs/src/documentation/content/xdocs/zookeeperProgrammers.xml
+@@ -1506,7 +1506,7 @@ authProvider.2=com.f.MyAuth2
+         <para>If you are using watches, you must look for the connected watch
+         event. When a ZooKeeper client disconnects from a server, you will
+         not receive notification of changes until reconnected. If you are
+-        watching for a znode to come into existance, you will miss the event
++        watching for a znode to come into existence, you will miss the event
+         if the znode is created and deleted while you are disconnected.</para>
+       </listitem>
+ 
+--- a/src/java/main/org/apache/zookeeper/server/DatadirCleanupManager.java
++++ b/src/java/main/org/apache/zookeeper/server/DatadirCleanupManager.java
+@@ -139,7 +139,7 @@ public class DatadirCleanupManager {
+             try {
+                 PurgeTxnLog.purge(new File(logsDir), new File(snapsDir), snapRetainCount);
+             } catch (Exception e) {
+-                LOG.error("Error occured while purging.", e);
++                LOG.error("Error occurred while purging.", e);
+             }
+             LOG.info("Purge task completed.");
+         }
+--- a/src/java/main/org/apache/zookeeper/server/ZooKeeperThread.java
++++ b/src/java/main/org/apache/zookeeper/server/ZooKeeperThread.java
+@@ -57,6 +57,6 @@ public class ZooKeeperThread extends Thr
+      *            - exception object
+      */
+     protected void handleException(String thName, Throwable e) {
+-        LOG.warn("Exception occured from thread {}", thName, e);
++        LOG.warn("Exception occurred from thread {}", thName, e);
+     }
+ }
+--- a/src/java/test/org/apache/zookeeper/server/PurgeTxnTest.java
++++ b/src/java/test/org/apache/zookeeper/server/PurgeTxnTest.java
+@@ -428,7 +428,7 @@ public class PurgeTxnTest extends ZKTest
+                             zk.create(mynode, new byte[0], Ids.OPEN_ACL_UNSAFE,
+                                     CreateMode.PERSISTENT);
+                         } catch (Exception e) {
+-                            LOG.error("Unexpected exception occured!", e);
++                            LOG.error("Unexpected exception occurred!", e);
+                         }
+                         if (i == 200) {
+                             doPurge.countDown();
+@@ -447,8 +447,8 @@ public class PurgeTxnTest extends ZKTest
+             Assert.assertTrue("ZkClient ops is not finished!",
+                     finished.await(OP_TIMEOUT_IN_MILLIS, TimeUnit.MILLISECONDS));
+         } catch (InterruptedException ie) {
+-            LOG.error("Unexpected exception occured!", ie);
+-            Assert.fail("Unexpected exception occured!");
++            LOG.error("Unexpected exception occurred!", ie);
++            Assert.fail("Unexpected exception occurred!");
+         }
+         return znodes;
+     }

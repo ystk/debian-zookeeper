@@ -39,6 +39,9 @@ import java.util.Date;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.zookeeper.server.ZooKeeperServer;
+import org.apache.zookeeper.server.ZooKeeperThread;
+
 /**
  * This class implements a connection manager for leader election using TCP. It
  * maintains one connection for every pair of servers. The tricky part is to
@@ -70,12 +73,17 @@ public class QuorumCnxManager {
     // stale notifications to peers
     static final int SEND_CAPACITY = 1;
 
-    static final int PACKETMAXSIZE = 1024 * 1024; 
+    static final int PACKETMAXSIZE = 1024 * 512; 
     /*
      * Maximum number of attempts to connect to a peer
      */
 
     static final int MAX_CONNECTION_ATTEMPTS = 2;
+
+    /*
+     * Max buffer size to be read from the network.
+     */
+    static public final int maxBuffer = 2048;
     
     /*
      * Negative counter for observer server ids.
@@ -127,6 +135,7 @@ public class QuorumCnxManager {
     private AtomicInteger threadCnt = new AtomicInteger(0);
 
     static public class Message {
+        
         Message(ByteBuffer buffer, long sid) {
             this.buffer = buffer;
             this.sid = sid;
@@ -225,13 +234,32 @@ public class QuorumCnxManager {
      * possible long value to lose the challenge.
      * 
      */
-    public boolean receiveConnection(Socket sock) {
+    public void receiveConnection(Socket sock) {
         Long sid = null;
         
         try {
             // Read server id
             DataInputStream din = new DataInputStream(sock.getInputStream());
             sid = din.readLong();
+            if (sid < 0) { // this is not a server id but a protocol version (see ZOOKEEPER-1633)
+                sid = din.readLong();
+
+                // next comes the #bytes in the remainder of the message
+                // note that 0 bytes is fine (old servers)
+                int num_remaining_bytes = din.readInt();
+                if (num_remaining_bytes < 0 || num_remaining_bytes > maxBuffer) {
+                    LOG.error("Unreasonable buffer length: {}", num_remaining_bytes);
+                    closeSocket(sock);
+                    return;
+                }
+                byte[] b = new byte[num_remaining_bytes];
+
+                // remove the remainder of the message from din
+                int num_read = din.read(b);
+                if (num_read != num_remaining_bytes) {
+                    LOG.error("Read only " + num_read + " bytes out of " + num_remaining_bytes + " sent by server " + sid);
+                }
+            }
             if (sid == QuorumPeer.OBSERVER_ID) {
                 /*
                  * Choose identifier at random. We need a value to identify
@@ -244,7 +272,7 @@ public class QuorumCnxManager {
         } catch (IOException e) {
             closeSocket(sock);
             LOG.warn("Exception reading or writing challenge: " + e.toString());
-            return false;
+            return;
         }
         
         //If wins the challenge, then close the new connection.
@@ -287,9 +315,8 @@ public class QuorumCnxManager {
             sw.start();
             rw.start();
             
-            return true;    
+            return;
         }
-        return false;
     }
 
     /**
@@ -363,11 +390,22 @@ public class QuorumCnxManager {
                 // detail.
                 LOG.warn("Cannot open channel to " + sid
                         + " at election address " + electionAddr, e);
+                // Resolve hostname for this server in case the
+                // underlying ip address has changed.
+                if (self.getView().containsKey(sid)) {
+                    self.getView().get(sid).recreateSocketAddresses();
+                }
                 throw e;
             } catch (IOException e) {
                 LOG.warn("Cannot open channel to " + sid
                         + " at election address " + electionAddr,
                         e);
+                // We can't really tell if the server is actually down or it failed
+                // to connect to the server because the underlying IP address
+                // changed. Resolve the hostname again just in case.
+                if (self.getView().containsKey(sid)) {
+                    self.getView().get(sid).recreateSocketAddresses();
+                }
             }
         } else {
             LOG.debug("There is a connection already for server " + sid);
@@ -466,9 +504,15 @@ public class QuorumCnxManager {
     /**
      * Thread to listen on some port
      */
-    public class Listener extends Thread {
+    public class Listener extends ZooKeeperThread {
 
         volatile ServerSocket ss = null;
+
+        public Listener() {
+            // During startup of thread, thread name will be overridden to
+            // specific election address
+            super("ListenerThread");
+        }
 
         /**
          * Sleeps on accept().
@@ -476,13 +520,17 @@ public class QuorumCnxManager {
         @Override
         public void run() {
             int numRetries = 0;
+            InetSocketAddress addr;
             while((!shutdown) && (numRetries < 3)){
                 try {
                     ss = new ServerSocket();
                     ss.setReuseAddress(true);
-                    int port = self.quorumPeers.get(self.getId()).electionAddr
-                            .getPort();
-                    InetSocketAddress addr = new InetSocketAddress(port);
+                    if (self.getQuorumListenOnAllIPs()) {
+                        int port = self.quorumPeers.get(self.getId()).electionAddr.getPort();
+                        addr = new InetSocketAddress(port);
+                    } else {
+                        addr = self.quorumPeers.get(self.getId()).electionAddr;
+                    }
                     LOG.info("My election bind port: " + addr.toString());
                     setName(self.quorumPeers.get(self.getId()).electionAddr
                             .toString());
@@ -539,7 +587,7 @@ public class QuorumCnxManager {
      * soon as there is one available. If connection breaks, then opens a new
      * one.
      */
-    class SendWorker extends Thread {
+    class SendWorker extends ZooKeeperThread {
         Long sid;
         Socket sock;
         RecvWorker recvWorker;
@@ -693,7 +741,7 @@ public class QuorumCnxManager {
      * Thread to receive messages. Instance waits on a socket read. If the
      * channel breaks, then removes itself from the pool of receivers.
      */
-    class RecvWorker extends Thread {
+    class RecvWorker extends ZooKeeperThread {
         Long sid;
         Socket sock;
         volatile boolean running = true;

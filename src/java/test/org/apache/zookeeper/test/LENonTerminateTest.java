@@ -38,6 +38,7 @@ import org.apache.zookeeper.PortAssignment;
 import org.apache.zookeeper.ZKTestCase;
 import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.quorum.Election;
+import org.apache.zookeeper.server.quorum.FLELostMessageTest;
 import org.apache.zookeeper.server.quorum.LeaderElection;
 import org.apache.zookeeper.server.quorum.QuorumPeer;
 import org.apache.zookeeper.server.quorum.Vote;
@@ -216,7 +217,7 @@ public class LENonTerminateTest extends ZKTestCase {
         throws IOException
         {
             super(quorumPeers, snapDir, logDir, electionAlg,
-                    myid,tickTime, initLimit,syncLimit,
+                    myid,tickTime, initLimit,syncLimit, false,
                     ServerCnxnFactory.createFactory(clientPort, -1),
                     new QuorumMaj(countParticipants(quorumPeers)));
         }
@@ -299,9 +300,8 @@ public class LENonTerminateTest extends ZKTestCase {
         for(int i = 0; i < count; i++) {
             int clientport = PortAssignment.unique();
             peers.put(Long.valueOf(i),
-                    new QuorumServer(i,
-                            new InetSocketAddress("127.0.0.1", clientport),
-                            new InetSocketAddress("127.0.0.1", PortAssignment.unique())));
+                      new QuorumServer(i, "127.0.0.1", clientport,
+                                       PortAssignment.unique(), null));
             tmpdir[i] = ClientBase.createTmpDir();
             port[i] = clientport;
         }

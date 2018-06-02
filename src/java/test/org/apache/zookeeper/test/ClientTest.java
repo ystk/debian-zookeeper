@@ -18,37 +18,39 @@
 
 package org.apache.zookeeper.test;
 
+import static org.junit.Assert.fail;
+
 import java.io.IOException;
-import java.lang.management.ManagementFactory;
-import java.lang.management.OperatingSystemMXBean;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.TestableZooKeeper;
-import org.apache.zookeeper.WatchedEvent;
-import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.KeeperException.Code;
 import org.apache.zookeeper.KeeperException.InvalidACLException;
+import org.apache.zookeeper.TestableZooKeeper;
+import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher.Event.EventType;
 import org.apache.zookeeper.Watcher.Event.KeeperState;
 import org.apache.zookeeper.ZooDefs.Ids;
 import org.apache.zookeeper.ZooDefs.Perms;
+import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.data.ACL;
 import org.apache.zookeeper.data.Id;
 import org.apache.zookeeper.data.Stat;
+import org.apache.zookeeper.proto.ExistsRequest;
+import org.apache.zookeeper.proto.ExistsResponse;
+import org.apache.zookeeper.proto.ReplyHeader;
+import org.apache.zookeeper.proto.RequestHeader;
 import org.apache.zookeeper.server.PrepRequestProcessor;
+import org.apache.zookeeper.server.util.OSMXBean;
 import org.junit.Assert;
 import org.junit.Test;
-
-import com.sun.management.UnixOperatingSystemMXBean;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ClientTest extends ClientBase {
     protected static final Logger LOG = LoggerFactory.getLogger(ClientTest.class);
@@ -91,14 +93,22 @@ public class ClientTest extends ClientBase {
     public void testClientwithoutWatcherObj() throws IOException,
             InterruptedException, KeeperException
     {
-        performClientTest(false);
+        performClientTest(false, hostPort);
     }
 
     @Test
     public void testClientWithWatcherObj() throws IOException,
             InterruptedException, KeeperException
     {
-        performClientTest(true);
+        performClientTest(true, hostPort);
+    }
+
+    @Test
+    public void testClientWithIPv6Address() throws IOException,
+            InterruptedException, KeeperException
+    {
+        assumeIPv6Available();
+        performClientTest(true, ipv6HostPort);
     }
 
     /** Exercise the testable functions, verify tostring, etc... */
@@ -160,6 +170,12 @@ public class ClientTest extends ClientBase {
             List<ACL> acls = zk.getACL("/acltest", new Stat());
             Assert.assertEquals(1, acls.size());
             Assert.assertEquals(Ids.OPEN_ACL_UNSAFE, acls);
+
+            // The stat parameter should be optional.
+            acls = zk.getACL("/acltest", null);
+            Assert.assertEquals(1, acls.size());
+            Assert.assertEquals(Ids.OPEN_ACL_UNSAFE, acls);
+
             zk.close();
         } finally {
             if (zk != null) {
@@ -302,7 +318,7 @@ public class ClientTest extends ClientBase {
         }
     }
 
-    private void performClientTest(boolean withWatcherObj)
+    private void performClientTest(boolean withWatcherObj, String hostPort)
         throws IOException, InterruptedException, KeeperException
     {
         ZooKeeper zk = null;
@@ -709,11 +725,8 @@ public class ClientTest extends ClientBase {
      */
     @Test
     public void testClientCleanup() throws Throwable {
-        OperatingSystemMXBean osMbean =
-            ManagementFactory.getOperatingSystemMXBean();
-        if (osMbean == null 
-                || !(osMbean instanceof UnixOperatingSystemMXBean))
-        {
+        OSMXBean osMbean = new OSMXBean();
+        if (osMbean.getUnix() == false) {
             LOG.warn("skipping testClientCleanup, only available on Unix");
             return;
         }
@@ -726,9 +739,7 @@ public class ClientTest extends ClientBase {
          * on unix systems (the only place sun has implemented as part of the
          * mgmt bean api).
          */
-        UnixOperatingSystemMXBean unixos =
-            (UnixOperatingSystemMXBean) osMbean;
-        long initialFdCount = unixos.getOpenFileDescriptorCount();
+        long initialFdCount = osMbean.getOpenFileDescriptorCount();
 
         VerifyClientCleanup threads[] = new VerifyClientCleanup[threadCount];
 
@@ -744,7 +755,7 @@ public class ClientTest extends ClientBase {
 
         // if this Assert.fails it means we are not cleaning up after the closed
         // sessions.
-        long currentCount = unixos.getOpenFileDescriptorCount();
+        long currentCount = osMbean.getOpenFileDescriptorCount();
         final String logmsg = "open fds after test ({}) are not significantly higher than before ({})";
         
         if (currentCount > initialFdCount + 10) {
@@ -752,6 +763,35 @@ public class ClientTest extends ClientBase {
         	LOG.error(logmsg,Long.valueOf(currentCount),Long.valueOf(initialFdCount));
         } else {
         	LOG.info(logmsg,Long.valueOf(currentCount),Long.valueOf(initialFdCount));
+        }
+    }
+
+
+    /**
+     * We create a perfectly valid 'exists' request, except that the opcode is wrong.
+     * @return
+     * @throws Exception
+     */
+    @Test
+    public void testNonExistingOpCode() throws Exception  {
+        TestableZooKeeper zk = createClient();
+
+        final String path = "/m1";
+
+        RequestHeader h = new RequestHeader();
+        h.setType(888);  // This code does not exists
+        ExistsRequest request = new ExistsRequest();
+        request.setPath(path);
+        request.setWatch(false);
+        ExistsResponse response = new ExistsResponse();
+        ReplyHeader r = zk.submitRequest(h, request, response, null);
+
+        Assert.assertEquals(r.getErr(), Code.UNIMPLEMENTED.intValue());
+
+        try {
+            zk.exists("/m1", false);
+            fail("The connection should have been closed");
+        } catch (KeeperException.ConnectionLossException expected) {
         }
     }
 }

@@ -39,7 +39,7 @@ import org.apache.zookeeper.KeeperException.SessionExpiredException;
  * period. Sessions are thus expired in batches made up of sessions that expire
  * in a given interval.
  */
-public class SessionTrackerImpl extends Thread implements SessionTracker {
+public class SessionTrackerImpl extends ZooKeeperCriticalThread implements SessionTracker {
     private static final Logger LOG = LoggerFactory.getLogger(SessionTrackerImpl.class);
 
     HashMap<Long, SessionImpl> sessionsById = new HashMap<Long, SessionImpl>();
@@ -74,7 +74,7 @@ public class SessionTrackerImpl extends Thread implements SessionTracker {
 
     public static long initializeNextSession(long id) {
         long nextSid = 0;
-        nextSid = (System.currentTimeMillis() << 24) >> 8;
+        nextSid = (System.currentTimeMillis() << 24) >>> 8;
         nextSid =  nextSid | (id <<56);
         return nextSid;
     }
@@ -92,9 +92,9 @@ public class SessionTrackerImpl extends Thread implements SessionTracker {
 
     public SessionTrackerImpl(SessionExpirer expirer,
             ConcurrentHashMap<Long, Integer> sessionsWithTimeout, int tickTime,
-            long sid)
+            long sid, ZooKeeperServerListener listener)
     {
-        super("SessionTracker");
+        super("SessionTracker", listener);
         this.expirer = expirer;
         this.expirationInterval = tickTime;
         this.sessionsWithTimeout = sessionsWithTimeout;
@@ -157,7 +157,7 @@ public class SessionTrackerImpl extends Thread implements SessionTracker {
                 nextExpirationTime += expirationInterval;
             }
         } catch (InterruptedException e) {
-            LOG.error("Unexpected interruption", e);
+            handleException(this.getName(), e);
         }
         LOG.info("SessionTrackerImpl exited loop!");
     }

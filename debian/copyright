@@ -1,13 +1,13 @@
-Format: http://dep.debian.net/deps/dep5/
+Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: Apache Zookeeper
 Source: http://hadoop.apache.org/zookeeper/releases.html
 
 Files: *
-Copyright: 2008-2009, The Apache Software Foundation
+Copyright: 2008-2016, The Apache Software Foundation
 License: Apache-2.0
 
 Files: src/contrib/zooinspector/src/java/com/*
-       debian/patches/add_jtoaster_source_to_zooinspector
+       debian/patches/01-add-jtoaster-to-zooinspector.patch
 Copyright: Daniele Piras ("danielepiras80", no email).
 License: Apache-2.0
 
@@ -201,7 +201,7 @@ License: EPL-1.0
 
 Files: src/c/src/hashtable/*
 Copyright: 2002, 2004, Christopher Clark
-License: BSD
+License: BSD-3-clause
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions
   are met:
