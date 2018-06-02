@@ -899,16 +899,70 @@ public class ZooKeeper {
      * partially succeeded if this exception is thrown.
      * @throws KeeperException If the operation could not be completed
      * due to some error in doing one of the specified ops.
+     * @throws IllegalArgumentException if an invalid path is specified
      *
      * @since 3.4.0
      */
     public List<OpResult> multi(Iterable<Op> ops) throws InterruptedException, KeeperException {
-        // reconstructing transaction with the chroot prefix
+        for (Op op : ops) {
+            op.validate();
+        }
+        return multiInternal(generateMultiTransaction(ops));
+    }
+
+    /**
+     * The asynchronous version of multi.
+     *
+     * @see #multi(Iterable)
+     * @since 3.4.7
+     */
+    public void multi(Iterable<Op> ops, MultiCallback cb, Object ctx) {
+        List<OpResult> results = validatePath(ops);
+        if (results.size() > 0) {
+            cb.processResult(KeeperException.Code.BADARGUMENTS.intValue(),
+                             null, ctx, results);
+            return;
+        }
+        multiInternal(generateMultiTransaction(ops), cb, ctx);
+    }
+
+    private List<OpResult> validatePath(Iterable<Op> ops) {
+        List<OpResult> results = new ArrayList<OpResult>();
+        boolean error = false;
+        for (Op op : ops) {
+            try {
+                op.validate();
+            } catch (IllegalArgumentException iae) {
+                LOG.error("IllegalArgumentException: " + iae.getMessage());
+                ErrorResult err = new ErrorResult(
+                        KeeperException.Code.BADARGUMENTS.intValue());
+                results.add(err);
+                error = true;
+                continue;
+            } catch (KeeperException ke) {
+                LOG.error("KeeperException: " + ke.getMessage());
+                ErrorResult err = new ErrorResult(ke.code().intValue());
+                results.add(err);
+                error = true;
+                continue;
+            }
+            ErrorResult err = new ErrorResult(
+                    KeeperException.Code.RUNTIMEINCONSISTENCY.intValue());
+            results.add(err);
+        }
+        if (false == error) {
+            results.clear();
+        }
+        return results;
+    }
+
+    private MultiTransactionRecord generateMultiTransaction(Iterable<Op> ops) {
         List<Op> transaction = new ArrayList<Op>();
+
         for (Op op : ops) {
             transaction.add(withRootPrefix(op));
         }
-        return multiInternal(new MultiTransactionRecord(transaction));
+        return new MultiTransactionRecord(transaction);
     }
 
     private Op withRootPrefix(Op op) {
@@ -919,6 +973,13 @@ public class ZooKeeper {
             }
         }
         return op;
+    }
+
+    protected void multiInternal(MultiTransactionRecord request, MultiCallback cb, Object ctx) {
+        RequestHeader h = new RequestHeader();
+        h.setType(ZooDefs.OpCode.multi);
+        MultiResponse response = new MultiResponse();
+        cnxn.queuePacket(h, new ReplyHeader(), request, response, cb, null, null, ctx, null);
     }
 
     protected List<OpResult> multiInternal(MultiTransactionRecord request)
@@ -1302,7 +1363,8 @@ public class ZooKeeper {
      * @param path
      *                the given path for the node
      * @param stat
-     *                the stat of the node will be copied to this parameter.
+     *                the stat of the node will be copied to this parameter if
+     *                not null.
      * @return the ACL array of the given node.
      * @throws InterruptedException If the server transaction is interrupted.
      * @throws KeeperException If the server signals an error with a non-zero error code.
@@ -1326,7 +1388,9 @@ public class ZooKeeper {
             throw KeeperException.create(KeeperException.Code.get(r.getErr()),
                     clientPath);
         }
-        DataTree.copyStat(response.getStat(), stat);
+        if (stat != null) {
+            DataTree.copyStat(response.getStat(), stat);
+        }
         return response.getAcl();
     }
 

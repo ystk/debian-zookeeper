@@ -21,6 +21,12 @@ package org.apache.zookeeper;
 import java.io.IOException;
 import java.net.SocketAddress;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
+import org.apache.jute.Record;
+import org.apache.zookeeper.proto.ReplyHeader;
+import org.apache.zookeeper.proto.RequestHeader;
 
 public class TestableZooKeeper extends ZooKeeper {
 
@@ -60,8 +66,10 @@ public class TestableZooKeeper extends ZooKeeper {
      * Cause this ZooKeeper object to stop receiving from the ZooKeeperServer
      * for the given number of milliseconds.
      * @param ms the number of milliseconds to pause.
+     * @return true if the connection is paused, otherwise false
      */
-    public void pauseCnxn(final long ms) {
+    public boolean pauseCnxn(final long ms) {
+        final CountDownLatch initiatedPause = new CountDownLatch(1);
         new Thread() {
             public void run() {
                 synchronized(cnxn) {
@@ -70,6 +78,8 @@ public class TestableZooKeeper extends ZooKeeper {
                             cnxn.sendThread.testableCloseSocket();
                         } catch (IOException e) {
                             e.printStackTrace();
+                        } finally {
+                            initiatedPause.countDown();
                         }
                         Thread.sleep(ms);
                     } catch (InterruptedException e) {
@@ -77,6 +87,13 @@ public class TestableZooKeeper extends ZooKeeper {
                 }
             }
         }.start();
+
+        try {
+            return initiatedPause.await(ms, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            return false;
+        }
     }
     
     public boolean testableWaitForShutdown(int wait)
@@ -98,5 +115,10 @@ public class TestableZooKeeper extends ZooKeeper {
      */
     public long testableLastZxid() {
         return cnxn.getLastZxid();
+    }
+
+    public ReplyHeader submitRequest(RequestHeader h, Record request,
+            Record response, WatchRegistration watchRegistration) throws InterruptedException {
+        return cnxn.submitRequest(h, request, response, watchRegistration);
     }
 }

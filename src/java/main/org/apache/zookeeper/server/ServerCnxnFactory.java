@@ -21,8 +21,9 @@ package org.apache.zookeeper.server;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.security.auth.login.Configuration;
 import javax.security.auth.login.LoginException;
@@ -60,6 +61,10 @@ public abstract class ServerCnxnFactory {
         synchronized(cnxns) {
             return cnxns.size();
         }
+    }
+
+    ZooKeeperServer getZooKeeperServer() {
+        return zkServer;
     }
 
     public abstract void closeSession(long sessionId);
@@ -128,7 +133,8 @@ public abstract class ServerCnxnFactory {
 
     public abstract InetSocketAddress getLocalAddress();
 
-    private final HashMap<ServerCnxn, ConnectionBean> connectionBeans = new HashMap<ServerCnxn, ConnectionBean>();
+    private final Map<ServerCnxn, ConnectionBean> connectionBeans
+        = new ConcurrentHashMap<ServerCnxn, ConnectionBean>();
 
     protected final HashSet<ServerCnxn> cnxns = new HashSet<ServerCnxn>();
     public void unregisterConnection(ServerCnxn serverCnxn) {

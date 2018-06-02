@@ -19,7 +19,9 @@ package org.apache.zookeeper;
 
 import static org.junit.Assert.*;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -178,4 +180,79 @@ public class ZooKeeperTest extends ClientBase {
             }
     }
 
+    @Test
+    public void testCliCommandsNotEchoingUsage() throws Exception {
+            // setup redirect out/err streams to get System.in/err, use this judiciously!
+           final PrintStream systemErr = System.err; // get current err
+           final ByteArrayOutputStream errContent = new ByteArrayOutputStream();
+           System.setErr(new PrintStream(errContent));
+           final ZooKeeper zk = createClient();
+           ZooKeeperMain zkMain = new ZooKeeperMain(zk);
+           String cmd1 = "printwatches";
+           zkMain.executeLine(cmd1);
+           String cmd2 = "history";
+           zkMain.executeLine(cmd2);
+           String cmd3 = "redo";
+           zkMain.executeLine(cmd3);
+           // revert redirect of out/err streams - important step!
+           System.setErr(systemErr);
+           if (errContent.toString().contains("ZooKeeper -server host:port cmd args")) {
+                fail("CLI commands (history, redo, connect, printwatches) display usage info!");
+            }
+    }
+
+     @Test
+    public void testParseWithQuotes() throws Exception {
+        final ZooKeeper zk = createClient();
+        ZooKeeperMain zkMain = new ZooKeeperMain(zk);
+        for (String quoteChar : new String[] {"'", "\""}) {
+            String cmdstring = String.format("create /node %1$squoted data%1$s", quoteChar);
+            zkMain.cl.parseCommand(cmdstring);
+            Assert.assertEquals("quotes combine arguments", zkMain.cl.getNumArguments(), 3);
+            Assert.assertEquals("create is not taken as first argument", zkMain.cl.getCmdArgument(0), "create");
+            Assert.assertEquals("/node is not taken as second argument", zkMain.cl.getCmdArgument(1), "/node");
+            Assert.assertEquals("quoted data is not taken as third argument", zkMain.cl.getCmdArgument(2), "quoted data");
+        }
+    }
+
+    @Test
+    public void testParseWithMixedQuotes() throws Exception {
+        final ZooKeeper zk = createClient();
+        ZooKeeperMain zkMain = new ZooKeeperMain(zk);
+        for (String[] quoteChars : new String[][] {{"'", "\""}, {"\"", "'"}}) {
+            String outerQuotes = quoteChars[0];
+            String innerQuotes = quoteChars[1];
+            String cmdstring = String.format("create /node %1$s%2$squoted data%2$s%1$s", outerQuotes, innerQuotes);
+            zkMain.cl.parseCommand(cmdstring);
+            Assert.assertEquals("quotes combine arguments", zkMain.cl.getNumArguments(), 3);
+            Assert.assertEquals("create is not taken as first argument", zkMain.cl.getCmdArgument(0), "create");
+            Assert.assertEquals("/node is not taken as second argument", zkMain.cl.getCmdArgument(1), "/node");
+            Assert.assertEquals("quoted data is not taken as third argument", zkMain.cl.getCmdArgument(2), innerQuotes + "quoted data" + innerQuotes);
+        }
+    }
+
+    @Test
+    public void testParseWithEmptyQuotes() throws Exception {
+        final ZooKeeper zk = createClient();
+        ZooKeeperMain zkMain = new ZooKeeperMain(zk);
+        String cmdstring = "create /node ''";
+        zkMain.cl.parseCommand(cmdstring);
+        Assert.assertEquals("empty quotes should produce arguments", zkMain.cl.getNumArguments(), 3);
+        Assert.assertEquals("create is not taken as first argument", zkMain.cl.getCmdArgument(0), "create");
+        Assert.assertEquals("/node is not taken as second argument", zkMain.cl.getCmdArgument(1), "/node");
+        Assert.assertEquals("empty string is not taken as third argument", zkMain.cl.getCmdArgument(2), "");
+    }
+
+    @Test
+    public void testParseWithMultipleQuotes() throws Exception {
+        final ZooKeeper zk = createClient();
+        ZooKeeperMain zkMain = new ZooKeeperMain(zk);
+        String cmdstring = "create /node '' ''";
+        zkMain.cl.parseCommand(cmdstring);
+        Assert.assertEquals("expected 5 arguments", zkMain.cl.getNumArguments(), 4);
+        Assert.assertEquals("create is not taken as first argument", zkMain.cl.getCmdArgument(0), "create");
+        Assert.assertEquals("/node is not taken as second argument", zkMain.cl.getCmdArgument(1), "/node");
+        Assert.assertEquals("empty string is not taken as third argument", zkMain.cl.getCmdArgument(2), "");
+        Assert.assertEquals("empty string is not taken as fourth argument", zkMain.cl.getCmdArgument(3), "");
+    }
 }

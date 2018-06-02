@@ -59,6 +59,7 @@ public class QuorumPeerConfig {
     protected int syncLimit;
     protected int electionAlg = 3;
     protected int electionPort = 2182;
+    protected boolean quorumListenOnAllIPs = false;
     protected final HashMap<Long,QuorumServer> servers =
         new HashMap<Long, QuorumServer>();
     protected final HashMap<Long,QuorumServer> observers =
@@ -71,6 +72,7 @@ public class QuorumPeerConfig {
     protected QuorumVerifier quorumVerifier;
     protected int snapRetainCount = 3;
     protected int purgeInterval = 0;
+    protected boolean syncEnabled = true;
 
     protected LearnerType peerType = LearnerType.PARTICIPANT;
     
@@ -87,6 +89,27 @@ public class QuorumPeerConfig {
         }
         public ConfigException(String msg, Exception e) {
             super(msg, e);
+        }
+    }
+
+    private static String[] splitWithLeadingHostname(String s)
+            throws ConfigException
+    {
+        /* Does it start with an IPv6 literal? */
+        if (s.startsWith("[")) {
+            int i = s.indexOf("]:");
+            if (i < 0) {
+                throw new ConfigException(s + " starts with '[' but has no matching ']:'");
+            }
+
+            String[] sa = s.substring(i + 2).split(":");
+            String[] nsa = new String[sa.length + 1];
+            nsa[0] = s.substring(1, i);
+            System.arraycopy(sa, 0, nsa, 1, sa.length);
+
+            return nsa;
+        } else {
+            return s.split(":");
         }
     }
 
@@ -157,6 +180,8 @@ public class QuorumPeerConfig {
                 syncLimit = Integer.parseInt(value);
             } else if (key.equals("electionAlg")) {
                 electionAlg = Integer.parseInt(value);
+            } else if (key.equals("quorumListenOnAllIPs")) {
+                quorumListenOnAllIPs = Boolean.parseBoolean(value);
             } else if (key.equals("peerType")) {
                 if (value.toLowerCase().equals("observer")) {
                     peerType = LearnerType.OBSERVER;
@@ -166,6 +191,8 @@ public class QuorumPeerConfig {
                 {
                     throw new ConfigException("Unrecognised peertype: " + value);
                 }
+            } else if (key.equals( "syncEnabled" )) {
+                syncEnabled = Boolean.parseBoolean(value);
             } else if (key.equals("autopurge.snapRetainCount")) {
                 snapRetainCount = Integer.parseInt(value);
             } else if (key.equals("autopurge.purgeInterval")) {
@@ -173,36 +200,32 @@ public class QuorumPeerConfig {
             } else if (key.startsWith("server.")) {
                 int dot = key.indexOf('.');
                 long sid = Long.parseLong(key.substring(dot + 1));
-                String parts[] = value.split(":");
+                String parts[] = splitWithLeadingHostname(value);
                 if ((parts.length != 2) && (parts.length != 3) && (parts.length !=4)) {
                     LOG.error(value
                        + " does not have the form host:port or host:port:port " +
                        " or host:port:port:type");
                 }
-                InetSocketAddress addr = new InetSocketAddress(parts[0],
-                        Integer.parseInt(parts[1]));
-                if (parts.length == 2) {
-                    servers.put(Long.valueOf(sid), new QuorumServer(sid, addr));
-                } else if (parts.length == 3) {
-                    InetSocketAddress electionAddr = new InetSocketAddress(
-                            parts[0], Integer.parseInt(parts[2]));
-                    servers.put(Long.valueOf(sid), new QuorumServer(sid, addr,
-                            electionAddr));
-                } else if (parts.length == 4) {
-                    InetSocketAddress electionAddr = new InetSocketAddress(
-                            parts[0], Integer.parseInt(parts[2]));
-                    LearnerType type = LearnerType.PARTICIPANT;
+                LearnerType type = null;
+                String hostname = parts[0];
+                Integer port = Integer.parseInt(parts[1]);
+                Integer electionPort = null;
+                if (parts.length > 2){
+                	electionPort=Integer.parseInt(parts[2]);
+                }
+                if (parts.length > 3){
                     if (parts[3].toLowerCase().equals("observer")) {
                         type = LearnerType.OBSERVER;
-                        observers.put(Long.valueOf(sid), new QuorumServer(sid, addr,
-                                electionAddr,type));
                     } else if (parts[3].toLowerCase().equals("participant")) {
                         type = LearnerType.PARTICIPANT;
-                        servers.put(Long.valueOf(sid), new QuorumServer(sid, addr,
-                                electionAddr,type));
                     } else {
                         throw new ConfigException("Unrecognised peertype: " + value);
                     }
+                }
+                if (type == LearnerType.OBSERVER){
+                    observers.put(Long.valueOf(sid), new QuorumServer(sid, hostname, port, electionPort, type));
+                } else {
+                    servers.put(Long.valueOf(sid), new QuorumServer(sid, hostname, port, electionPort, type));
                 }
             } else if (key.startsWith("group")) {
                 int dot = key.indexOf('.');
@@ -242,11 +265,6 @@ public class QuorumPeerConfig {
         }
         if (dataLogDir == null) {
             dataLogDir = dataDir;
-        } else {
-            if (!new File(dataLogDir).isDirectory()) {
-                throw new IllegalArgumentException("dataLogDir " + dataLogDir
-                        + " is missing.");
-            }
         }
         if (clientPort == 0) {
             throw new IllegalArgumentException("clientPort is not set");
@@ -392,6 +410,10 @@ public class QuorumPeerConfig {
     public int getPurgeInterval() {
         return purgeInterval;
     }
+    
+    public boolean getSyncEnabled() {
+        return syncEnabled;
+    }
 
     public QuorumVerifier getQuorumVerifier() {   
         return quorumVerifier;
@@ -407,5 +429,9 @@ public class QuorumPeerConfig {
 
     public LearnerType getPeerType() {
         return peerType;
+    }
+
+    public Boolean getQuorumListenOnAllIPs() {
+        return quorumListenOnAllIPs;
     }
 }

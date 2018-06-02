@@ -25,19 +25,22 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.lang.management.ManagementFactory;
-import java.lang.management.OperatingSystemMXBean;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import javax.management.MBeanServerConnection;
+import javax.management.ObjectName;
+
+import junit.framework.TestCase;
 
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.PortAssignment;
@@ -54,13 +57,12 @@ import org.apache.zookeeper.server.ZKDatabase;
 import org.apache.zookeeper.server.ZooKeeperServer;
 import org.apache.zookeeper.server.persistence.FileTxnLog;
 import org.apache.zookeeper.server.quorum.QuorumPeer;
+import org.apache.zookeeper.server.util.OSMXBean;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.sun.management.UnixOperatingSystemMXBean;
 
 public abstract class ClientBase extends ZKTestCase {
     protected static final Logger LOG = LoggerFactory.getLogger(ClientBase.class);
@@ -69,7 +71,9 @@ public abstract class ClientBase extends ZKTestCase {
     static final File BASETEST =
         new File(System.getProperty("build.test.dir", "build"));
 
-    protected String hostPort = "127.0.0.1:" + PortAssignment.unique();
+    protected int port = PortAssignment.unique();
+    protected String hostPort = "127.0.0.1:" + port;
+    protected String ipv6HostPort = "[0:0:0:0:0:0:0:1]:" + port;
     protected int maxCnxns = 0;
     protected ServerCnxnFactory serverFactory = null;
     protected File tmpDir = null;
@@ -191,13 +195,12 @@ public abstract class ClientBase extends ZKTestCase {
             }
             if (allClients != null) {
                 allClients.add(zk);
+                JMXEnv.ensureAll(getHexSessionId(zk.getSessionId()));
             } else {
                 // test done - close the zk, not needed
                 zk.close();
             }
         }
-
-        JMXEnv.ensureAll("0x" + Long.toHexString(zk.getSessionId()));
 
         return zk;
     }
@@ -328,20 +331,42 @@ public abstract class ClientBase extends ZKTestCase {
         return Integer.parseInt(portstr);
     }
 
-    public static ServerCnxnFactory createNewServerInstance(File dataDir,
-            ServerCnxnFactory factory, String hostPort, int maxCnxns)
-        throws IOException, InterruptedException
-    {
+    /**
+     * Starting the given server instance
+     */
+    public static void startServerInstance(File dataDir,
+            ServerCnxnFactory factory, String hostPort) throws IOException,
+            InterruptedException {
+        final int port = getPort(hostPort);
+        LOG.info("STARTING server instance 127.0.0.1:{}", port);
         ZooKeeperServer zks = new ZooKeeperServer(dataDir, dataDir, 3000);
-        final int PORT = getPort(hostPort);
-        if (factory == null) {
-            factory = ServerCnxnFactory.createFactory(PORT, maxCnxns);
-        }
         factory.startup(zks);
-        Assert.assertTrue("waiting for server up",
-                   ClientBase.waitForServerUp("127.0.0.1:" + PORT,
-                                              CONNECTION_TIMEOUT));
+        Assert.assertTrue("waiting for server up", ClientBase.waitForServerUp(
+                "127.0.0.1:" + port, CONNECTION_TIMEOUT));
+    }
 
+    /**
+     * This method instantiates a new server. Starting of the server
+     * instance has been moved to a separate method
+     * {@link ClientBase#startServerInstance(File, ServerCnxnFactory, String)}.
+     * Because any exception on starting the server would leave the server
+     * running and the caller would not be able to shutdown the instance. This
+     * may affect other test cases.
+     * 
+     * @return newly created server instance
+     * 
+     * @see <a
+     *      href="https://issues.apache.org/jira/browse/ZOOKEEPER-1852">ZOOKEEPER-1852</a>
+     *      for more information.
+     */
+    public static ServerCnxnFactory createNewServerInstance(
+            ServerCnxnFactory factory, String hostPort, int maxCnxns)
+            throws IOException, InterruptedException {
+        final int port = getPort(hostPort);
+        LOG.info("CREATING server instance 127.0.0.1:{}", port);
+        if (factory == null) {
+            factory = ServerCnxnFactory.createFactory(port, maxCnxns);
+        }
         return factory;
     }
 
@@ -349,15 +374,18 @@ public abstract class ClientBase extends ZKTestCase {
             String hostPort)
     {
         if (factory != null) {
-            ZKDatabase zkDb;
+            ZKDatabase zkDb = null;
             {
                 ZooKeeperServer zs = getServer(factory);
-        
-                zkDb = zs.getZKDatabase();
+                if (zs != null) {
+                    zkDb = zs.getZKDatabase();
+                }
             }
             factory.shutdown();
             try {
-                zkDb.close();
+                if (zkDb != null) {
+                    zkDb.close();
+                }
             } catch (IOException ie) {
                 LOG.warn("Error closing logs ", ie);
             }
@@ -393,12 +421,9 @@ public abstract class ClientBase extends ZKTestCase {
          * correctly. Unfortunately this only works on unix systems (the
          * only place sun has implemented as part of the mgmt bean api.
          */
-        OperatingSystemMXBean osMbean =
-            ManagementFactory.getOperatingSystemMXBean();
-        if (osMbean != null && osMbean instanceof UnixOperatingSystemMXBean) {
-            UnixOperatingSystemMXBean unixos =
-                (UnixOperatingSystemMXBean)osMbean;
-            initialFdCount = unixos.getOpenFileDescriptorCount();
+        OSMXBean osMbean = new OSMXBean();
+        if (osMbean.getUnix() == true) {
+            initialFdCount = osMbean.getOpenFileDescriptorCount();  	
             LOG.info("Initial fdcount is: "
                     + initialFdCount);
         }
@@ -418,9 +443,49 @@ public abstract class ClientBase extends ZKTestCase {
 
     protected void startServer() throws Exception {
         LOG.info("STARTING server");
-        serverFactory = createNewServerInstance(tmpDir, serverFactory, hostPort, maxCnxns);
-        // ensure that only server and data bean are registered
-        JMXEnv.ensureOnly("InMemoryDataTree", "StandaloneServer_port");
+        serverFactory = createNewServerInstance(serverFactory, hostPort,
+                maxCnxns);
+        startServerInstance(tmpDir, serverFactory, hostPort);
+        // ensure that server and data bean are registered
+        Set<ObjectName> children = JMXEnv.ensureParent("InMemoryDataTree",
+                "StandaloneServer_port");
+        // Remove beans which are related to zk client sessions. Strong
+        // assertions cannot be done for these client sessions because
+        // registeration of these beans with server will happen only on their
+        // respective reconnection interval
+        verifyUnexpectedBeans(children);
+    }
+
+    private void verifyUnexpectedBeans(Set<ObjectName> children) {
+        if (allClients != null) {
+            for (ZooKeeper zkc : allClients) {
+                Iterator<ObjectName> childItr = children.iterator();
+                while (childItr.hasNext()) {
+                    ObjectName clientBean = childItr.next();
+                    if (clientBean.toString().contains(
+                            getHexSessionId(zkc.getSessionId()))) {
+                        LOG.info("found name:" + zkc.getSessionId()
+                                + " client bean:" + clientBean.toString());
+                        childItr.remove();
+                    }
+                }
+            }
+        }
+        for (ObjectName bean : children) {
+            LOG.info("unexpected:" + bean.toString());
+        }
+        TestCase.assertEquals("Unexpected bean exists!", 0, children.size());
+    }
+
+    /**
+     * Returns a string representation of the given long value session id
+     * 
+     * @param sessionId
+     *            long value of session id
+     * @return string representation of session id
+     */
+    protected static String getHexSessionId(long sessionId) {
+        return "0x" + Long.toHexString(sessionId);
     }
 
     protected void stopServer() throws Exception {
@@ -474,12 +539,9 @@ public abstract class ClientBase extends ZKTestCase {
          * correctly. Unfortunately this only works on unix systems (the
          * only place sun has implemented as part of the mgmt bean api.
          */
-        OperatingSystemMXBean osMbean =
-            ManagementFactory.getOperatingSystemMXBean();
-        if (osMbean != null && osMbean instanceof UnixOperatingSystemMXBean) {
-            UnixOperatingSystemMXBean unixos =
-                (UnixOperatingSystemMXBean)osMbean;
-            long fdCount = unixos.getOpenFileDescriptorCount();
+        OSMXBean osMbean = new OSMXBean();
+        if (osMbean.getUnix() == true) {
+            long fdCount = osMbean.getOpenFileDescriptorCount();     
             String message = "fdcount after test is: "
                     + fdCount + " at start it was " + initialFdCount;
             LOG.info(message);

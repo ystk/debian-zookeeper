@@ -695,13 +695,13 @@ zk_acl_constant(alias=Nullch)
             alias = GvNAME(CvGV(cv));
         }
 
-        if (ix == 1 || strEQ(alias, "ZOO_OPEN_ACL_UNSAFE")) {
+        if (ix == 1 || (alias != NULL && strEQ(alias, "ZOO_OPEN_ACL_UNSAFE"))) {
             acl = ZOO_OPEN_ACL_UNSAFE;
         }
-        else if (ix == 2 || strEQ(alias, "ZOO_READ_ACL_UNSAFE")) {
+        else if (ix == 2 || (alias != NULL && strEQ(alias, "ZOO_READ_ACL_UNSAFE"))) {
             acl = ZOO_READ_ACL_UNSAFE;
         }
-        else if (ix == 3 || strEQ(alias, "ZOO_CREATOR_ALL_ACL")) {
+        else if (ix == 3 || (alias != NULL && strEQ(alias, "ZOO_CREATOR_ALL_ACL"))) {
             acl = ZOO_CREATOR_ALL_ACL;
         }
         else {
@@ -1713,7 +1713,7 @@ zk_get(zkh, path, ...)
                               old_watch, new_watch);
         }
 
-        if (ret == ZOK) {
+        if (ret == ZOK && buf_len != -1) {
             ST(0) = sv_newmortal();
 #ifdef SV_HAS_TRAILING_NUL
             buf[buf_len] = '\0';
@@ -2604,6 +2604,7 @@ zkw_wait(zkwh, ...)
         unsigned int timeout;
         struct timeval end_timeval;
         int i, done;
+        struct timespec wait_timespec;
     PPCODE:
         watch = _zkw_get_handle_outer(aTHX_ zkwh, NULL);
 
@@ -2630,25 +2631,19 @@ zkw_wait(zkwh, ...)
         end_timeval.tv_sec += timeout / 1000;
         end_timeval.tv_usec += (timeout % 1000) * 1000;
 
+        wait_timespec.tv_sec = end_timeval.tv_sec;
+        wait_timespec.tv_nsec = end_timeval.tv_usec * 1000;
+
         pthread_mutex_lock(&watch->mutex);
 
         while (!watch->done) {
             struct timeval curr_timeval;
-            struct timespec wait_timespec;
 
             gettimeofday(&curr_timeval, NULL);
 
-            wait_timespec.tv_sec = end_timeval.tv_sec - curr_timeval.tv_sec;
-            wait_timespec.tv_nsec =
-                (end_timeval.tv_usec - curr_timeval.tv_usec) * 1000;
-
-            if (wait_timespec.tv_nsec < 0) {
-                --wait_timespec.tv_sec;
-                wait_timespec.tv_nsec += 1000000000;
-            }
-
-            if (wait_timespec.tv_sec < 0 ||
-                (wait_timespec.tv_sec == 0 && wait_timespec.tv_nsec <= 0)) {
+            if (end_timeval.tv_sec < curr_timeval.tv_sec ||
+                (end_timeval.tv_sec == curr_timeval.tv_sec &&
+                 end_timeval.tv_usec <= curr_timeval.tv_usec)) {
                 break;
             }
 

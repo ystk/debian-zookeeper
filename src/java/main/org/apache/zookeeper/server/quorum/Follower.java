@@ -18,11 +18,9 @@
 
 package org.apache.zookeeper.server.quorum;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 
-import org.apache.jute.BinaryInputArchive;
 import org.apache.jute.Record;
 import org.apache.zookeeper.server.util.SerializeUtils;
 import org.apache.zookeeper.server.util.ZxidUtils;
@@ -81,11 +79,11 @@ public class Follower extends Learner{
                 }
                 syncWithLeader(newEpochZxid);                
                 QuorumPacket qp = new QuorumPacket();
-                while (self.isRunning()) {
+                while (this.isRunning()) {
                     readPacket(qp);
                     processPacket(qp);
                 }
-            } catch (IOException e) {
+            } catch (Exception e) {
                 LOG.warn("Exception when following the leader", e);
                 try {
                     sock.close();
