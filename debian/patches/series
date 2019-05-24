@@ -9,3 +9,4 @@
 10-CVE-2017-5637.patch
 CVE-2018-8012.patch
 patch-build-system.patch
+CVE-2019-11579.patch
